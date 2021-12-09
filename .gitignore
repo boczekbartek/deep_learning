@@ -146,4 +146,4 @@ cython_debug/
 *.pkl
 *.pth
 
-.DS_Score
+.DS_Store
