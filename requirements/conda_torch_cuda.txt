@@ -1,0 +1,2 @@
+pytorch==1.10.0
+cudatoolkit==10.2
