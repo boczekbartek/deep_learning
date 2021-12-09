@@ -1,2 +1,3 @@
+torchvision==0.11.1
 pytorch==1.10.0
 cudatoolkit==10.2
