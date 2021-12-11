@@ -7,9 +7,10 @@
 1. Clone this repo including submodules:
     ```bash
     # with https (user + password) auth
-    git clone --recurse-submodules git@github.com:boczekbartek/deep_learning.git
-    # with ssh (ssh key based) auth:
     git clone --recurse-submodules https://github.com/boczekbartek/deep_learning.git
+
+    # with ssh (ssh key based) auth:
+    git clone --recurse-submodules git@github.com:boczekbartek/deep_learning.git
     ```
 2. Create conda or pip virtual env (conda is recommended)
     ```bash
