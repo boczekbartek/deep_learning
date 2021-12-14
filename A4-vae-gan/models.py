@@ -3,17 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class View(nn.Module):
-    def __init__(self, shape):
-        self.shape = shape
-
-    def forward(self, x):
-        return x.view(*self.shape)
-
-
 class VAEGauss(nn.Module):
     def __init__(self, in_channels: int, latent_dim: int, img_h: int, img_w: int) -> None:
-        """[summary]
+        """Convolutional Variational Autoencoder with Gaussian prior
 
         Args:
             in_channels (int): Number of channels in the input image
@@ -23,25 +15,52 @@ class VAEGauss(nn.Module):
         """
         super().__init__()
 
+        self.img_h = img_h
+        self.img_w = img_w
+
+        self.conv1_n_fil = 32
+        self.conv2_n_fil = 64
+
+        self.conv_kernel_size = 3
+        self.max_pool_kernel_size = 2
+
         # Encoder layers
-        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=32, kernel_size=3, stride=1)
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1)
-        self.max_pool1 = nn.MaxPool2d(kernel_size=2)
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=32, kernel_size=self.conv_kernel_size, stride=1)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=self.conv_kernel_size, stride=1)
+        self.max_pool1 = nn.MaxPool2d(kernel_size=self.max_pool_kernel_size)
         self.drop1 = nn.Dropout(0.25)
-        self.fully_connected_size = (
-            64 * (img_h - 4) // 2 * (img_w - 4) // 2
-        )  # TODO calculate in code, this was read experimentically and works only for 28x28 images
-        self.lin1 = nn.Linear(self.fully_connected_size, 128)
+        fc_size = self.calculate_fc_size_encoder(
+            self.img_h, self.img_w, self.conv_kernel_size, self.conv2_n_fil, self.max_pool_kernel_size
+        )
+        self.lin1 = nn.Linear(fc_size, 128)
         self.drop2 = nn.Dropout(0.5)
         self.lin2 = nn.Linear(128, latent_dim)
 
         # Decoder layers
         self.lin3 = nn.Linear(latent_dim, 128)
         self.drop3 = nn.Dropout(0.5)
-        self.lin4 = nn.Linear(128, 64 * 32)
+        fc_size = self.calculate_fc_size_decoder(self.img_h, self.img_w, self.conv_kernel_size, self.conv2_n_fil)
+        self.lin4 = nn.Linear(128, fc_size)
         self.drop4 = nn.Dropout(0.25)
-        self.dconv1 = nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=3, stride=1)
-        self.dconv2 = nn.ConvTranspose2d(in_channels=32, out_channels=in_channels, kernel_size=3, stride=1)
+        self.dconv1 = nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=self.conv_kernel_size, stride=1)
+        self.dconv2 = nn.ConvTranspose2d(
+            in_channels=32, out_channels=in_channels, kernel_size=self.conv_kernel_size, stride=1
+        )
+
+    @classmethod
+    def calculate_fc_size_encoder(cls, img_h, img_w, conv_kernel_size, conv2_filters, max_pool_kernel):
+        return cls.calculate_fc_size_decoder(img_h, img_w, conv_kernel_size, conv2_filters) // (2 * max_pool_kernel)
+
+    @staticmethod
+    def calculate_fc_size_decoder(img_h, img_w, conv_kernel_size, conv2_filters):
+        conv1_size_reduction = conv_kernel_size - 1
+        conv2_size_reduction = conv_kernel_size - 1
+        total_conv_reduction = conv1_size_reduction + conv2_size_reduction
+
+        h = img_h - total_conv_reduction
+        w = img_w - total_conv_reduction
+
+        return conv2_filters * h * w
 
     def encode(self, x):
         x = self.conv1(x)
@@ -57,9 +76,23 @@ class VAEGauss(nn.Module):
         x = self.lin2(x)
         return x
 
+    def decode(self, x):
+        x = self.lin3(x)
+        x = F.relu(x)
+        x = self.drop3(x)
+        x = self.lin4(x)
+        x = F.relu(x)
+        x = self.drop4(x)
+        x = x.view(-1, 64, (self.img_h - 4), (self.img_w - 4))
+        x = self.dconv1(x)
+        x = F.relu(x)
+        x = self.dconv2(x)
+        return x
+
     def forward(self, x):
-        latent = self.encoder(x)
-        return self.decoder(latent)
+        z = self.encode(x)
+        # TODO reparametraize
+        return self.decode(z)
 
     def activate_output(self, logits):
         return F.softmax(logits)
