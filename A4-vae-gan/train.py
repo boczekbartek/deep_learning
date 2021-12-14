@@ -6,14 +6,14 @@ import torch.nn.functional as F
 from torchvision.utils import save_image
 
 from data import load_mnist
-from models import VAEGauss
+from models import VAE, VAEGauss, VAEGaussSimpleDec
 from criterions import elbo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 def loss_function(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy_with_logits(recon_x, x, reduction="sum")
+    BCE = F.binary_cross_entropy_with_logits(recon_x.view(-1, 784), x.view(-1, 784), reduction="sum")
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
@@ -34,7 +34,7 @@ def test(model, testloader, device, batch_size, epoch, results_dir: pathlib.Path
             # TODO use elbo
             test_loss += loss_function(recon_batch, data, mu, logvar).item()
             if i == 0:
-                n = min(data.size(0), 8)
+                n = min(data.size(0), 16)
                 comparison = torch.cat([data[:n], recon_batch.view(batch_size, 1, 28, 28)[:n]])
                 save_image(comparison.cpu(), results_dir / f"reconstruction_{epoch}.png", nrow=n)
         test_loss /= len(testloader.dataset)
@@ -59,12 +59,11 @@ def train_vae_gauss_mnist(epochs, batch_size, lr=0.001, cuda=True, log_interval=
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    train_loss = 0
-    for epoch in range(1, epochs):
+    for epoch in range(1, epochs + 1):
+        train_loss = 0
         logging.info(f"Epoch {epoch}")
         for batch_idx, (x, _) in enumerate(trainloader):
             x = x.to(device)
-            # x = x.reshape(-1, 784)
             optimizer.zero_grad()
             x_hat, mu, logvar = model(x)
 
@@ -90,4 +89,4 @@ def train_vae_gauss_mnist(epochs, batch_size, lr=0.001, cuda=True, log_interval=
 
 
 if __name__ == "__main__":
-    train_vae_gauss_mnist(10, 64, log_interval=100, cuda=True)
+    train_vae_gauss_mnist(20, 128, lr=1e-3, log_interval=50, cuda=True)
