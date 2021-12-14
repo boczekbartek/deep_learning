@@ -9,11 +9,12 @@ class VAEGauss(nn.Module):
 
         Args:
             in_channels (int): Number of channels in the input image
-            latent_dim (int): Size of the latent space
+            latent_dim (int): Size of each parameter of the latent space. [0:half] is mu, [half:] is log_std.
             img_h (int): Height of input image
             img_w (int): Width of input image
         """
         super().__init__()
+        self.latent_dim = latent_dim
 
         self.img_h = img_h
         self.img_w = img_w
@@ -34,7 +35,8 @@ class VAEGauss(nn.Module):
         )
         self.lin1 = nn.Linear(fc_size, 128)
         self.drop2 = nn.Dropout(0.5)
-        self.lin2 = nn.Linear(128, latent_dim)
+        self.lin2_1 = nn.Linear(128, latent_dim)
+        self.lin2_2 = nn.Linear(128, latent_dim)
 
         # Decoder layers
         self.lin3 = nn.Linear(latent_dim, 128)
@@ -62,6 +64,16 @@ class VAEGauss(nn.Module):
 
         return conv2_filters * h * w
 
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+
+        # Split the latent space vector in half, to get repersentations for both parameters (mu. log_std)
+        z = self.reparameterize(mu, logvar)
+
+        x_hat = self.decode(z)
+
+        return x_hat, mu, logvar
+
     def encode(self, x):
         x = self.conv1(x)
         x = F.relu(x)
@@ -73,8 +85,9 @@ class VAEGauss(nn.Module):
         x = self.lin1(x)
         x = F.relu(x)
         x = self.drop2(x)
-        x = self.lin2(x)
-        return x
+        mu = self.lin2_1(x)
+        logvar = self.lin2_2(x)
+        return mu, logvar
 
     def decode(self, x):
         x = self.lin3(x)
@@ -89,10 +102,12 @@ class VAEGauss(nn.Module):
         x = self.dconv2(x)
         return x
 
-    def forward(self, x):
-        z = self.encode(x)
-        # TODO reparametraize
-        return self.decode(z)
+    @staticmethod
+    def reparameterize(mu, logvar):
+        std = torch.exp(logvar)
+        eps = torch.randn_like(std)
+        z = mu + eps * std
+        return z
 
     def activate_output(self, logits):
         return F.softmax(logits)

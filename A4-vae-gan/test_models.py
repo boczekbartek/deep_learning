@@ -19,8 +19,8 @@ def test_vae_gauss_mnist(batch_size, latent_dim):
     b, ch, h, w = x0.shape
     model = VAEGauss(in_channels=ch, latent_dim=latent_dim, img_h=h, img_w=w)
 
-    gen_x = model.forward(x0)
-    assert gen_x.shape == x0.shape
+    x_hat, _, _ = model.forward(x0)
+    assert x_hat.shape == x0.shape
 
 
 @pytest.mark.parametrize("batch_size", BATCHES)
@@ -33,8 +33,9 @@ def test_vae_gauss_encoder(batch_size: int, in_channels: int, img_h: int, img_w:
     # Generate random input batch
     x = torch.randn(batch_size, in_channels, img_h, img_w)
 
-    z = model.encode(x)
-    assert z.shape == (batch_size, latent_dim)
+    mu, logvar = model.encode(x)
+    assert mu.shape == (batch_size, latent_dim)
+    assert logvar.shape == (batch_size, latent_dim)
 
 
 @pytest.mark.parametrize("batch_size", BATCHES)
@@ -50,3 +51,14 @@ def test_vae_gauss_decoder(batch_size: int, in_channels: int, img_h: int, img_w:
     x_gen = model.decode(z)
 
     assert x_gen.shape == (batch_size, in_channels, img_h, img_w)
+
+
+@pytest.mark.parametrize("batch_size", BATCHES)
+@pytest.mark.parametrize("latent_dim", [128])
+def test_vae_gauss_reparametrize(batch_size, latent_dim):
+    mu = torch.randn(batch_size, latent_dim)
+    log_std = torch.randn(batch_size, latent_dim)
+
+    z = VAEGauss.reparameterize(mu, log_std)
+
+    assert z.shape == (batch_size, latent_dim)
