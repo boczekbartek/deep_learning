@@ -95,7 +95,12 @@ class VAEGauss(nn.Module):
         x = self.lin4(x)
         x = F.relu(x)
         x = self.drop4(x)
-        x = x.view(-1, 64, (self.img_h - 4), (self.img_w - 4))
+
+        conv1_size_reduction = self.conv_kernel_size - 1
+        conv2_size_reduction = self.conv_kernel_size - 1
+        total_reduction = conv1_size_reduction + conv2_size_reduction
+
+        x = x.view(-1, self.conv2_n_fil, (self.img_h - total_reduction), (self.img_w - total_reduction))
         x = self.dconv1(x)
         x = F.relu(x)
         x = self.dconv2(x)
