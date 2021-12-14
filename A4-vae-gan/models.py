@@ -67,7 +67,6 @@ class VAEGauss(nn.Module):
     def forward(self, x):
         mu, logvar = self.encode(x)
 
-        # Split the latent space vector in half, to get repersentations for both parameters (mu. log_std)
         z = self.reparameterize(mu, logvar)
 
         x_hat = self.decode(z)
