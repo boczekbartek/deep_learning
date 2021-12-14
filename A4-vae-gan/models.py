@@ -16,9 +16,11 @@ class VAEGauss(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
 
+        # Image size
         self.img_h = img_h
         self.img_w = img_w
 
+        # Number of filters in conv layers
         self.conv1_n_fil = 32
         self.conv2_n_fil = 64
 
@@ -30,6 +32,8 @@ class VAEGauss(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=self.conv_kernel_size, stride=1)
         self.max_pool1 = nn.MaxPool2d(kernel_size=self.max_pool_kernel_size)
         self.drop1 = nn.Dropout(0.25)
+
+        # TODO it also depends on stride
         fc_size = self.calculate_fc_size_encoder(
             self.img_h, self.img_w, self.conv_kernel_size, self.conv2_n_fil, self.max_pool_kernel_size
         )

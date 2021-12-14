@@ -5,15 +5,15 @@ import torch
 import torch.nn.functional as F
 from torchvision.utils import save_image
 
-from data import load_mnist
-from models import VAE, VAEGauss, VAEGaussSimpleDec
+from data import data_factory
+from models import VAEGauss
 from criterions import elbo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 def loss_function(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy_with_logits(recon_x.view(-1, 784), x.view(-1, 784), reduction="sum")
+    BCE = F.binary_cross_entropy_with_logits(recon_x, x, reduction="sum")
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
@@ -24,31 +24,37 @@ def loss_function(recon_x, x, mu, logvar):
     return BCE + KLD
 
 
-def test(model, testloader, device, batch_size, epoch, results_dir: pathlib.Path):
+def test(model, testloader, device, epoch, results_dir: pathlib.Path):
     test_loss = 0
     with torch.no_grad():
-        for i, (data, _) in enumerate(testloader):
-            data = data.to(device)
-            recon_batch, mu, logvar = model(data)
+        for i, (x, _) in enumerate(testloader):
+            x = x.to(device)
+            x_hat, mu, logvar = model(x)
 
             # TODO use elbo
-            test_loss += loss_function(recon_batch, data, mu, logvar).item()
+            test_loss += loss_function(x_hat, x, mu, logvar).item()
             if i == 0:
-                n = min(data.size(0), 16)
-                comparison = torch.cat([data[:n], recon_batch.view(batch_size, 1, 28, 28)[:n]])
+                n = min(x.shape[0], 16)
+                comparison = torch.cat([x[:n], x_hat[:n]])
                 save_image(comparison.cpu(), results_dir / f"reconstruction_{epoch}.png", nrow=n)
         test_loss /= len(testloader.dataset)
         print("====> Test set loss: {:.4f}".format(test_loss))
 
 
-def train_vae_gauss_mnist(epochs, batch_size, lr=0.001, cuda=True, log_interval=10):
-    results_dir = pathlib.Path("vae_gauss_mnist")
+def train_vae_gauss(
+    epochs, batch_size, dataset: str, lr=0.001, cuda=True, log_interval=10,
+):
+    results_dir = pathlib.Path(f"vae_gauss_{dataset}")
     results_dir.mkdir(exist_ok=True)
+    logging.info(f"Results dir: {results_dir}")
 
     cuda = cuda and torch.cuda.is_available()
     device = torch.device("cuda" if cuda else "cpu")
     logging.info(f"Device: {device}")
-    trainloader, testloader = load_mnist(batch_size, cuda)
+
+    logging.info(f"Loading dataset: {dataset}")
+    data_loading_function = data_factory(dataset)
+    trainloader, testloader = data_loading_function(batch_size, cuda)
 
     x0, _ = next(iter(trainloader))
     b, c, h, w = x0.shape
@@ -85,8 +91,9 @@ def train_vae_gauss_mnist(epochs, batch_size, lr=0.001, cuda=True, log_interval=
                     )
                 )
         logging.info("====> Epoch: {} Average loss: {:.4f}".format(epoch, train_loss / len(trainloader.dataset)))
-        test(model, testloader, device, batch_size, epoch, results_dir)
+        test(model, testloader, device, epoch, results_dir)
 
 
 if __name__ == "__main__":
-    train_vae_gauss_mnist(20, 128, lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(20, 128, "mnist", lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(50, 64, "svhn", lr=1e-3, log_interval=50, cuda=True)
