@@ -58,7 +58,7 @@ def train_vae_gauss(
     b, c, h, w = x0.shape
 
     logging.info(f"Creating model: {model_name}")
-    model = models_factory(model_name)(in_channels=c, latent_dim=128, img_h=h, img_w=w)
+    model = models_factory(model_name)(in_channels=c, img_h=h, img_w=w)
 
     logging.debug(f"Sending model to: {device}")
     model = model.to(device)
@@ -107,7 +107,5 @@ def train_vae_gauss(
 
 
 if __name__ == "__main__":
-    train_vae_gauss(10, 128, "vae-gauss", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
-    # train_vae_gauss(50, 128, "vae-gauss","svhn", lr=1e-3, log_interval=50, cuda=True)
-    # train_vae_gauss(50, 128, "vae-gauss-sigm", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
-    # train_vae_gauss(50, 128, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(30, 128, "vae-gauss-base", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(30, 128, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
