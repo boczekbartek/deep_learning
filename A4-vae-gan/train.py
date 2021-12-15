@@ -2,7 +2,7 @@ import logging
 import pathlib
 
 import torch
-import torch.nn.functional as F
+import pandas as pd
 from torchvision.utils import save_image
 
 from data import data_factory
@@ -10,6 +10,15 @@ from criterions import criterions_factory
 from models import models_factory
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+
+
+def compute_grad_norm(model) -> float:
+    total_norm = 0
+    for p in model.parameters():
+        param_norm = p.grad.detach().data.norm(2)
+        total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** (1.0 / 2)
+    return total_norm
 
 
 def test(model, testloader, device, epoch, results_dir: pathlib.Path, loss_function):
@@ -26,7 +35,8 @@ def test(model, testloader, device, epoch, results_dir: pathlib.Path, loss_funct
                 comparison = torch.cat([x[:n], x_hat[:n], x_hat_01[:n]])
                 save_image(comparison.cpu(), results_dir / f"reconstruction_{epoch}.png", nrow=n)
         test_loss /= len(testloader.dataset)
-        print("====> Test set loss: {:.4f}".format(test_loss))
+        logging.info("====> Test set loss: {:.4f}".format(test_loss))
+    return test_loss
 
 
 def train_vae_gauss(
@@ -56,16 +66,18 @@ def train_vae_gauss(
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_function = criterions_factory(criterion)
+    data = list()
     for epoch in range(1, epochs + 1):
         train_loss = 0
         logging.info(f"Epoch {epoch}")
+        batch_idx = 0
         for batch_idx, (x, _) in enumerate(trainloader):
             x = x.to(device)
             optimizer.zero_grad()
             x_hat, mu, std, z = model(x)
 
             loss = loss_function(x_hat, x, mu, std, z)
-            loss /= torch.flatten(x_hat).shape[0] / x_hat.shape[0]
+            loss /= torch.flatten(x_hat).shape[0] / len(x)
 
             loss.backward()
             train_loss += loss.item()
@@ -77,18 +89,25 @@ def train_vae_gauss(
                         batch_idx * len(x),
                         len(trainloader.dataset),
                         100.0 * batch_idx / len(trainloader),
-                        loss.item() / len(x),
+                        loss.item(),
                     )
                 )
-        logging.info("====> Epoch: {} Average loss: {:.4f}".format(epoch, train_loss / len(trainloader.dataset)))
-        test(model, testloader, device, epoch, results_dir, loss_function)
+        train_loss /= batch_idx + 1
+        logging.info(f"====> Epoch: {epoch} Average loss: {train_loss:.4f}")
+        test_loss = test(model, testloader, device, epoch, results_dir, loss_function)
+        data.append(
+            {"epoch": epoch, "train_loss": train_loss, "test_loss": test_loss, "grad_norm": compute_grad_norm(model)}
+        )
     model_file = results_dir / "model.pt"
+    progress_file = results_dir / "progress.csv"
+
     logging.info(f"Saving final model to: {model_file}")
     torch.save(model, model_file)
+    pd.DataFrame(data).to_csv(progress_file)
 
 
 if __name__ == "__main__":
-    train_vae_gauss(30, 128, "vae-gauss", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(10, 128, "vae-gauss", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
     # train_vae_gauss(50, 128, "vae-gauss","svhn", lr=1e-3, log_interval=50, cuda=True)
     # train_vae_gauss(50, 128, "vae-gauss-sigm", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
     # train_vae_gauss(50, 128, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
