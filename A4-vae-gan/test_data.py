@@ -1,11 +1,31 @@
 import pytest
 import torch
-from data import load_inceptionv3_mnist
+from data import load_inceptionv3_mnist, load_mnist, load_svhn
+from test_models import BATCHES
+
+
+cuda_opts = [True, False] if torch.cuda.is_available() else [False]
+
+
+@pytest.mark.parametrize("batch_size", BATCHES)
+@pytest.mark.parametrize("cuda", cuda_opts)
+def test_loading_mnist(batch_size, cuda):
+    trainloader, testloader = load_mnist(batch_size, cuda)
+    x0, _ = next(iter(trainloader))
+    assert x0.shape == (batch_size, 1, 28, 28)
+
+
+@pytest.mark.parametrize("batch_size", [1, 32])
+@pytest.mark.parametrize("cuda", cuda_opts)
+def test_loading_svhn(batch_size, cuda):
+    trainloader, testloader = load_svhn(batch_size, cuda)
+    x0, _ = next(iter(trainloader))
+    assert x0.shape == (batch_size, 3, 32, 32)
 
 
 @pytest.mark.parametrize("test_or_train,idx", [("train", 0), ("test", 1)])
 def test_rescaling_mnits_to_match_inceptionv3_correct_shape(test_or_train, idx):
-    expected_shape = (3, 32, 32)
+    expected_shape = (3, 299, 299)
     loader = load_inceptionv3_mnist(batch_size=32, cuda=False)[idx]
 
     for (data, _) in loader:
