@@ -4,7 +4,9 @@ from typing import Tuple, Union
 import numpy as np
 import torch
 import torch.utils.data
+import torch.nn.functional as F
 import skimage.transform
+
 from torchvision import datasets, transforms
 from PIL.Image import Image
 from sklearn.model_selection import train_test_split
@@ -38,6 +40,22 @@ class Rescale(object):
         return np.stack([res_image_1ch] * self.c)
 
 
+class RescaleTensor(Rescale):
+    compatible_channels = {1, 3}
+    """ Same as rescale but can use batched tensor input """
+
+    def __call__(self, images: torch.Tensor) -> torch.Tensor:
+        n_channels = images.shape[1]
+        assert (
+            n_channels in self.compatible_channels
+        ), f"{self.__class__.__name__} can only rescale images of channel size: {self.compatible_channels}"
+
+        x = F.interpolate(images, (self.h, self.w))
+        if n_channels == 3:
+            return x
+        return torch.cat([x] * self.c, dim=1)
+
+
 def load_mnist(batch_size: int, cuda: bool) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """ Return train and test loaders for mnist. """
 
@@ -63,7 +81,7 @@ def load_inceptionv3_mnist(
     batch_size: int, cuda: bool
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """ Rescale MNIST to fix inception v3 input. Return train and test loaders """
-    inceptionv3_input_shape = (3, 32, 32)
+    inceptionv3_input_shape = (3, 299, 299)
 
     kwargs = {"num_workers": 1, "pin_memory": True} if cuda else {}
 

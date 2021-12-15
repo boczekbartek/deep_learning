@@ -25,7 +25,7 @@ def test_loading_svhn(batch_size, cuda):
 
 @pytest.mark.parametrize("test_or_train,idx", [("train", 0), ("test", 1)])
 def test_rescaling_mnits_to_match_inceptionv3_correct_shape(test_or_train, idx):
-    expected_shape = (3, 32, 32)
+    expected_shape = (3, 299, 299)
     loader = load_inceptionv3_mnist(batch_size=32, cuda=False)[idx]
 
     for (data, _) in loader:
