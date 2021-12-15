@@ -108,4 +108,4 @@ def train_vae_gauss(
 
 if __name__ == "__main__":
     train_vae_gauss(30, 128, "vae-gauss-base", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
-    train_vae_gauss(30, 128, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    train_vae_gauss(30, 64, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
