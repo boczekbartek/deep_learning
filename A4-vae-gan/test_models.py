@@ -1,10 +1,6 @@
 import pytest
 import torch
 
-from typing import Tuple
-
-from torch._C import PyTorchFileReader
-
 from models import VAEGauss
 from data import load_mnist
 
@@ -19,7 +15,7 @@ def test_vae_gauss_mnist(batch_size, latent_dim):
     b, ch, h, w = x0.shape
     model = VAEGauss(in_channels=ch, latent_dim=latent_dim, img_h=h, img_w=w)
 
-    x_hat, _, _ = model.forward(x0)
+    x_hat, mu, std, z = model.forward(x0)
     assert x_hat.shape == x0.shape
 
 
@@ -57,8 +53,9 @@ def test_vae_gauss_decoder(batch_size: int, in_channels: int, img_h: int, img_w:
 @pytest.mark.parametrize("latent_dim", [128])
 def test_vae_gauss_reparametrize(batch_size, latent_dim):
     mu = torch.randn(batch_size, latent_dim)
-    log_std = torch.randn(batch_size, latent_dim)
+    logvar = torch.randn(batch_size, latent_dim)
 
-    z = VAEGauss.reparameterize(mu, log_std)
+    z, std = VAEGauss.reparameterize(mu, logvar)
 
     assert z.shape == (batch_size, latent_dim)
+    assert std.shape == (batch_size, latent_dim)

@@ -1,11 +1,19 @@
+import logging
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import Inception3
-from torch.hub import load_state_dict_from_url
+from abc import ABC, abstractclassmethod
 
 
-class VAEGauss(nn.Module):
+class AbstractSamplingModel(ABC):
+    @abstractclassmethod
+    def sample(self, n: int) -> torch.Tensor:
+        """ Sample n samples from the model """
+        pass
+
+
+class VAEGauss(AbstractSamplingModel, nn.Module):
     def __init__(self, in_channels: int, latent_dim: int, img_h: int, img_w: int) -> None:
         """Convolutional Variational Autoencoder with Gaussian prior
 
@@ -113,11 +121,20 @@ class VAEGauss(nn.Module):
         return x
 
     @staticmethod
-    def reparameterize(mu, logvar):
+    def reparameterize(mu, logvar) -> Tuple[torch.Tensor, torch.Tensor]:
         std = torch.exp(logvar)
         q = torch.distributions.Normal(mu, std)
         z = q.rsample()
         return z, std
+
+    @torch.no_grad()
+    def sample(self, n):
+        device = next(self.parameters()).device
+
+        mu = torch.randn(n, self.latent_dim).to(device)
+        logvar = torch.randn(n, self.latent_dim).to(device)
+        z, _ = self.reparameterize(mu, logvar)
+        return self.decode(z)
 
 
 class VAEGaussSigm(VAEGauss):
@@ -183,121 +200,10 @@ class VAEGaussSigmBig(VAEGaussBig):
         return x
 
 
-model_urls = {
-    # Inception v3 ported from TensorFlow
-    "inception_v3_google": "https://download.pytorch.org/models/inception_v3_google-0cc3c7bd.pth",
-}
-
-
-class Inception3Encoder(Inception3):
-    def forward(self, x):
-        # N x 3 x 299 x 299
-        x = self.Conv2d_1a_3x3(x)
-        # N x 32 x 149 x 149
-        x = self.Conv2d_2a_3x3(x)
-        # N x 32 x 147 x 147
-        x = self.Conv2d_2b_3x3(x)
-        # N x 64 x 147 x 147
-        x = self.maxpool1(x)
-        # N x 64 x 73 x 73
-        x = self.Conv2d_3b_1x1(x)
-        # N x 80 x 73 x 73
-        x = self.Conv2d_4a_3x3(x)
-        # N x 192 x 71 x 71
-        x = self.maxpool2(x)
-        # N x 192 x 35 x 35
-        x = self.Mixed_5b(x)
-        # N x 256 x 35 x 35
-        x = self.Mixed_5c(x)
-        # N x 288 x 35 x 35
-        x = self.Mixed_5d(x)
-        # N x 288 x 35 x 35
-        x = self.Mixed_6a(x)
-        # N x 768 x 17 x 17
-        x = self.Mixed_6b(x)
-        # N x 768 x 17 x 17
-        x = self.Mixed_6c(x)
-        # N x 768 x 17 x 17
-        x = self.Mixed_6d(x)
-        # N x 768 x 17 x 17
-        x = self.Mixed_6e(x)
-        # N x 768 x 17 x 17
-        aux = None
-        if self.AuxLogits is not None:
-            if self.training:
-                aux = self.AuxLogits(x)
-        # N x 768 x 17 x 17
-        x = self.Mixed_7a(x)
-        # N x 1280 x 8 x 8
-        x = self.Mixed_7b(x)
-        # N x 2048 x 8 x 8
-        x = self.Mixed_7c(x)
-        # N x 2048 x 8 x 8
-        # Adaptive average pooling
-        x = self.avgpool(x)
-        # N x 2048 x 1 x 1
-        x = self.dropout(x)
-        # N x 2048 x 1 x 1
-        x = torch.flatten(x, 1)
-
-    @classmethod
-    def from_pretrained(cls, progress: bool = True, **kwargs):
-        if "transform_input" not in kwargs:
-            kwargs["transform_input"] = True
-        if "aux_logits" in kwargs:
-            original_aux_logits = kwargs["aux_logits"]
-            kwargs["aux_logits"] = True
-        else:
-            original_aux_logits = True
-        kwargs["init_weights"] = False  # we are loading weights from a pretrained model
-        model = Inception3(**kwargs)
-        state_dict = load_state_dict_from_url(model_urls["inception_v3_google"], progress=progress)
-        model.load_state_dict(state_dict)
-        if not original_aux_logits:
-            model.aux_logits = False
-            model.AuxLogits = None
-
-        return cls(**kwargs)
-
-
-class VAEGaussInceptionEnc(VAEGauss):
-    def __init__(self, in_channels: int, latent_dim: int, img_h: int, img_w: int) -> None:
-        super().__init__(in_channels, latent_dim, img_h, img_w)
-        self.latent_dim = latent_dim
-
-        # Image size
-        self.img_h = img_h
-        self.img_w = img_w
-
-        self.incpetion_encoder = Inception3Encoder.from_pretrained()
-        self.lin2_1 = nn.Linear(2048, latent_dim)
-        self.lin2_2 = nn.Linear(2048, latent_dim)
-
-        # Decoder layers
-        self.lin3 = nn.Linear(latent_dim, 512)
-        self.drop3 = nn.Dropout(0.5)
-        fc_size = self.calculate_fc_size_decoder(self.img_h, self.img_w, self.conv_kernel_size, self.conv2_n_fil)
-        self.lin4 = nn.Linear(512, fc_size)
-        self.drop4 = nn.Dropout(0.25)
-        self.dconv1 = nn.ConvTranspose2d(
-            in_channels=self.conv2_n_fil, out_channels=self.conv1_n_fil, kernel_size=self.conv_kernel_size, stride=1
-        )
-        self.dconv2 = nn.ConvTranspose2d(
-            in_channels=self.conv1_n_fil, out_channels=in_channels, kernel_size=self.conv_kernel_size, stride=1
-        )
-
-    def encode(self, x):
-        x = self.incpetion_encoder(x)
-        mu = self.lin2_1(x)
-        logvar = self.lin2_2(x)
-        return mu, logvar
-
-
 def models_factory(name):
     return {
         "vae-gauss": VAEGauss,
         "vae-gauss-big": VAEGaussBig,
         "vae-gauss-sigm": VAEGaussSigm,
         "vae-gauss-sigm-big": VAEGaussSigmBig,
-        "vae-gauss-inception": VAEGaussInceptionEnc,
     }[name]
