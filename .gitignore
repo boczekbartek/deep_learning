@@ -150,3 +150,9 @@ cython_debug/
 
 data
 A4-vae-gan/results
+
+*.pt
+.idea
+*.gz
+.vscode
+*.zip

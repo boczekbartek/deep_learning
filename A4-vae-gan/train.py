@@ -13,28 +13,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 def compute_grad_norm(model) -> float:
-    total_norm = 0
-    for p in model.parameters():
-        param_norm = p.grad.detach().data.norm(2)
-        total_norm += param_norm.item() ** 2
-    total_norm = total_norm ** (1.0 / 2)
-    return total_norm
+    with torch.no_grad():
+        total_norm = 0
+        for p in model.parameters():
+            param_norm = p.grad.data.norm(2).item()
+            total_norm += param_norm ** 2
+        total_norm = total_norm ** (1.0 / 2)
+        return total_norm
 
 
-def test(model, testloader, device, epoch, results_dir: pathlib.Path, loss_function):
+def test(model, testloader, device, epoch, results_dir: pathlib.Path, loss_function, batch_size):
     test_loss = 0
     with torch.no_grad():
         for i, (x, _) in enumerate(testloader):
             x = x.to(device)
             x_hat, mu, std, z = model(x)
 
-            test_loss += loss_function(x_hat, x, mu, std, z).item()
+            loss = loss_function(x_hat, x, mu, std, z)
+            loss /= torch.flatten(x_hat).shape[0] / len(x)
+            test_loss += loss.item()
             if i == 0:
                 x_hat_01 = torch.where(x_hat > 0.5, 1.0, 0.0)
                 n = min(x.shape[0], 16)
                 comparison = torch.cat([x[:n], x_hat[:n], x_hat_01[:n]])
                 save_image(comparison.cpu(), results_dir / f"reconstruction_{epoch}.png", nrow=n)
-        test_loss /= len(testloader.dataset)
+        test_loss /= batch_size
         logging.info("====> Test set loss: {:.4f}".format(test_loss))
     return test_loss
 
@@ -94,7 +97,7 @@ def train_vae_gauss(
                 )
         train_loss /= batch_idx + 1
         logging.info(f"====> Epoch: {epoch} Average loss: {train_loss:.4f}")
-        test_loss = test(model, testloader, device, epoch, results_dir, loss_function)
+        test_loss = test(model, testloader, device, epoch, results_dir, loss_function, batch_size)
         data.append(
             {"epoch": epoch, "train_loss": train_loss, "test_loss": test_loss, "grad_norm": compute_grad_norm(model)}
         )
