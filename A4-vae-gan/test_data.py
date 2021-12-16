@@ -1,6 +1,6 @@
 import pytest
 import torch
-from data import load_inceptionv3_mnist, load_mnist, load_svhn
+from data import load_inceptionv3_mnist, load_mnist, load_svhn, load_inceptionv3_svhn
 from test_models import BATCHES
 
 
@@ -24,9 +24,20 @@ def test_loading_svhn(batch_size, cuda):
 
 
 @pytest.mark.parametrize("test_or_train,idx", [("train", 0), ("test", 1)])
-def test_rescaling_mnits_to_match_inceptionv3_correct_shape(test_or_train, idx):
+def test_rescaling_mnist_to_match_inceptionv3_correct_shape(test_or_train, idx):
     expected_shape = (3, 299, 299)
     loader = load_inceptionv3_mnist(batch_size=32, cuda=False)[idx]
+
+    for (data, _) in loader:
+        for image in data:
+            assert image.shape == expected_shape, f"{test_or_train} | Wrong shape in train image: {image.shape}"
+        break
+
+
+@pytest.mark.parametrize("test_or_train,idx", [("train", 0), ("test", 1)])
+def test_rescaling_svhn_to_match_inceptionv3_correct_shape(test_or_train, idx):
+    expected_shape = (3, 299, 299)
+    loader = load_inceptionv3_svhn(batch_size=4, cuda=False)[idx]
 
     for (data, _) in loader:
         for image in data:
