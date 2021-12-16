@@ -21,7 +21,7 @@ def test_fid_encode(dataset_size, cuda):
     assert features.shape == (dataset_size, 2048)
 
 
-@pytest.mark.parametrize("batch_size", [1, 2, 32])
+@pytest.mark.parametrize("batch_size", [1, 2, 4])
 @pytest.mark.parametrize("dataset_size", [2, 5, 64])
 @pytest.mark.parametrize("cuda", cuda_opts)
 def test_fid_encode_batched(batch_size, dataset_size, cuda):
@@ -38,7 +38,7 @@ def test_fid_encode_batched(batch_size, dataset_size, cuda):
     assert features.shape == (dataset_size, 2048)
 
 
-@pytest.mark.parametrize("batch_size", BATCHES)
+@pytest.mark.parametrize("batch_size", [1, 2, 4])
 @pytest.mark.parametrize("cuda", cuda_opts)
 def test_fid_lower_for_same(batch_size, cuda):
     device = torch.device("cuda" if cuda else "cpu")

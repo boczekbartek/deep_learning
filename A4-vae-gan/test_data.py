@@ -34,6 +34,7 @@ def test_rescaling_mnist_to_match_inceptionv3_correct_shape(test_or_train, idx):
         break
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("test_or_train,idx", [("train", 0), ("test", 1)])
 def test_rescaling_svhn_to_match_inceptionv3_correct_shape(test_or_train, idx):
     expected_shape = (3, 299, 299)

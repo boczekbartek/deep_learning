@@ -33,5 +33,21 @@ def loss_function(x_hat: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, logvar
     return BCE + KLD
 
 
+def nll_flow_loss(
+    x_hat: torch.Tensor, x: torch.Tensor, log_prob_z0: torch.Tensor, log_prob_zk: torch.Tensor, log_det: torch.Tensor
+):
+    RE = F.mse_loss(x, x_hat, reduction="sum")
+
+    loss = log_prob_z0.mean() + RE - log_prob_zk.mean() - log_det.mean()
+
+    return loss
+
+
+def elbo_flows(x_hat, x, log_prob_z, log_det_J):
+    RE = F.mse_loss(x, x_hat, reduction="sum")
+    KL = -(log_prob_z + log_det_J).sum()
+    return RE + KL
+
+
 def criterions_factory(name):
-    return {"elbo": elbo, "torch": loss_function}[name]
+    return {"elbo": elbo, "torch": loss_function, "nll": nll_flow_loss, "elbo_flows": elbo_flows}[name]
