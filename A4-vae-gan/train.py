@@ -69,6 +69,7 @@ inference_and_loss_functions = {
     "vae-gauss-sigm-big": inference_and_loss_vae_gauss,
     "vae-realnvp-base": inference_and_loss_vae_realnvp,
     "vae-realnvp-base-jt": inference_and_loss_vae_realnvp_jt,
+    "vae-realnvp-base-jt-8flows": inference_and_loss_vae_realnvp_jt,
 }
 
 
@@ -146,4 +147,5 @@ if __name__ == "__main__":
     # train(30, 128, "vae-realnvp-base", "mnist", "nll", lr=1e-3, log_interval=50, cuda=True)
     # train(30, 128, "vae-realnvp-base", "svhn", "nll", lr=1e-3, log_interval=50, cuda=True)
 
-    train(30, 128, "vae-realnvp-base-jt", "mnist", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-realnvp-base-jt", "mnist", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+    train(30, 128, "vae-realnvp-base-jt-8flows", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)

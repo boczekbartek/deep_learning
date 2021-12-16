@@ -337,17 +337,17 @@ class SingleFlowScale(SingleFlowTranslate):
 
 
 class VAERealNvpJTBase(VAEGaussBase):
-    def __init__(self, in_channels: int, img_h: int, img_w: int, n_flows: int = 1) -> None:
+    n_flows: int = 1
+
+    def __init__(self, in_channels: int, img_h: int, img_w: int) -> None:
         super(VAERealNvpJTBase, self).__init__(in_channels, img_h, img_w)
 
-        self.translation_nets = nn.ModuleList([SingleFlowTranslate(self.latent_dim, self.fc_size)] * n_flows)
+        self.translation_nets = nn.ModuleList([SingleFlowTranslate(self.latent_dim, self.fc_size)] * self.n_flows)
 
-        self.scale_nets = nn.ModuleList([SingleFlowScale(self.latent_dim, self.fc_size)] * n_flows)
+        self.scale_nets = nn.ModuleList([SingleFlowScale(self.latent_dim, self.fc_size)] * self.n_flows)
 
         # Project flows output to the decoder
         self.projection = nn.Linear(self.latent_dim * 2, self.latent_dim)
-
-        self.n_flows = n_flows
 
     @staticmethod
     def permute(x):
@@ -394,6 +394,10 @@ class VAERealNvpJTBase(VAEGaussBase):
         raise NotImplementedError
 
 
+class VAERealNvpJTBase8Flows(VAERealNvpJTBase):
+    n_flows = 8
+
+
 def models_factory(name):
     return {
         "vae-gauss-base": VAEGaussBase,
@@ -402,4 +406,5 @@ def models_factory(name):
         "vae-gauss-sigm-big": VAEGaussBigSigm,
         "vae-realnvp-radial-base": VAERealNvpRadialBase,
         "vae-realnvp-base-jt": VAERealNvpJTBase,
+        "vae-realnvp-base-jt-8flows": VAERealNvpJTBase8Flows,
     }[name]
