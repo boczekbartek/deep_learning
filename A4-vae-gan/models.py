@@ -6,7 +6,10 @@ import torch.nn.functional as F
 from abc import ABC, abstractclassmethod, abstractmethod, abstractproperty
 
 
-class AbstractSamplingModel(ABC):
+class AbstractSamplingModel(nn.Module):
+    def __init__(self) -> None:
+        super(AbstractSamplingModel, self).__init__()
+
     @abstractclassmethod
     def sample(self, n: int) -> torch.Tensor:
         """ Sample n samples from the model """
@@ -14,6 +17,9 @@ class AbstractSamplingModel(ABC):
 
 
 class AbstractVAE(AbstractSamplingModel):
+    def __init__(self) -> None:
+        super(AbstractVAE, self).__init__()
+
     @abstractproperty
     def latent_dim(cls):
         pass
@@ -29,15 +35,6 @@ class AbstractVAE(AbstractSamplingModel):
     @abstractmethod
     def reparameterize(self, x):
         pass
-
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-
-        z, std = self.reparameterize(mu, logvar)
-
-        x_hat = self.decode(z)
-
-        return x_hat, mu, std, z
 
     @torch.no_grad()
     def sample(self, n):
@@ -67,7 +64,15 @@ def calculate_fc_size_encoder(img_h, img_w, conv_kernel_size, conv2_filters, max
 
 class ConvEncoder(nn.Module):
     def __init__(
-        self, in_channels: int, img_h: int, img_w: int, out_size: int, n_fil_1=32, n_fil_2=64, kernel_size=3, mp_size=2
+        self,
+        in_channels: int,
+        img_h: int,
+        img_w: int,
+        out_size: int = 128,
+        n_fil_1: int = 64,
+        n_fil_2: int = 32,
+        kernel_size: int = 3,
+        mp_size: int = 2,
     ) -> None:
         super().__init__()
         # Image size
@@ -118,10 +123,10 @@ class ConvDecoder(nn.Module):
         latent_dim: int,
         img_h: int,
         img_w: int,
-        n_fil_1=32,
-        n_fil_2=64,
-        kernel_size=3,
-        fc_size=128,
+        n_fil_1: int = 32,
+        n_fil_2: int = 64,
+        kernel_size: int = 3,
+        fc_size: int = 128,
     ) -> None:
         super().__init__()
 
@@ -164,7 +169,7 @@ class ConvDecoder(nn.Module):
         return x
 
 
-class VAEGaussBase(AbstractVAE, nn.Module):
+class VAEGaussBase(AbstractVAE):
     latent_dim = 128
     conv1_n_fil = 32
     conv2_n_fil = 64
@@ -177,35 +182,34 @@ class VAEGaussBase(AbstractVAE, nn.Module):
 
         Args:
             in_channels (int): Number of channels in the input image
-            latent_dim (int): Size of each parameter of the latent space. [0:half] is mu, [half:] is log_std.
             img_h (int): Height of input image
             img_w (int): Width of input image
         """
-        super().__init__()
+        super(VAEGaussBase, self).__init__()
 
         self.encoder = ConvEncoder(
-            in_channels,
-            img_h,
-            img_w,
-            self.fc_size,
-            self.conv1_n_fil,
-            self.conv2_n_fil,
-            self.conv_kernel_size,
-            self.max_pool_kernel_size,
+            in_channels=in_channels,
+            img_h=img_h,
+            img_w=img_w,
+            out_size=self.fc_size,
+            n_fil_1=self.conv1_n_fil,
+            n_fil_2=self.conv2_n_fil,
+            kernel_size=self.conv_kernel_size,
+            mp_size=self.max_pool_kernel_size,
         )
 
         self.lin_mu = nn.Linear(self.fc_size, self.latent_dim)
         self.lin_logvar = nn.Linear(self.fc_size, self.latent_dim)
 
         self.decoder = ConvDecoder(
-            in_channels,
-            self.latent_dim,
-            img_h,
-            img_w,
-            self.conv1_n_fil,
-            self.conv2_n_fil,
-            self.conv_kernel_size,
-            self.fc_size,
+            in_channels=in_channels,
+            latent_dim=self.latent_dim,
+            img_h=img_h,
+            img_w=img_w,
+            n_fil_1=self.conv1_n_fil,
+            n_fil_2=self.conv2_n_fil,
+            kernel_size=self.conv_kernel_size,
+            fc_size=self.fc_size,
         )
 
     def encode(self, x):
@@ -223,6 +227,15 @@ class VAEGaussBase(AbstractVAE, nn.Module):
         q = torch.distributions.Normal(mu, std)
         z = q.rsample()
         return z, std
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+
+        z, std = self.reparameterize(mu, logvar)
+
+        x_hat = self.decode(z)
+
+        return x_hat, mu, std, z
 
 
 class VAEGaussBaseSigm(VAEGaussBase):
