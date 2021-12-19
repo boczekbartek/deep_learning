@@ -82,13 +82,11 @@ inference_and_loss_functions = {
     "vae-gauss-base": inference_and_loss_vae_gauss,
     "vae-gauss-big": inference_and_loss_vae_gauss,
     "vae-gauss-base-sigm": inference_and_loss_vae_gauss,
-    "vae-gauss-sigm-big": inference_and_loss_vae_gauss,
-    "vae-realnvp-base": inference_and_loss_vae_realnvp,
+    "vae-gauss-big-sigm": inference_and_loss_vae_gauss,
     "vae-realnvp-base-jt": inference_and_loss_vae_realnvp_jt,
     "vae-realnvp-base-jt-4flows": inference_and_loss_vae_realnvp_jt,
     "vae-realnvp-base-jt-8flows": inference_and_loss_vae_realnvp_jt,
-    "vae-realnvp-base-jt-4flows2": inference_and_loss_vae_realnvp_jt2,
-    "vae-realnvp-base-jt-8flows2": inference_and_loss_vae_realnvp_jt2,
+    "vae-realnvp-base-sigm-jt-4flows": inference_and_loss_vae_realnvp_jt,
 }
 
 
@@ -121,8 +119,13 @@ def train(
     logging.info(f"Creating model: {model_name}")
     model = models_factory(model_name)(in_channels=c, img_h=h, img_w=w)
 
-    logging.info(summary(model, torch.zeros((b, c, h, w)), show_input=False, show_hierarchical=True))
+    print(
+        summary(model, torch.zeros((b, c, h, w)), show_input=False, show_hierarchical=True),
+        file=(results_dir / "summary.txt").open("w"),
+    )
+
     if summary_only:
+
         return
 
     logging.debug(f"Sending model to: {device}")
@@ -179,11 +182,14 @@ if __name__ == "__main__":
     # train(30, 128, "vae-gauss-base", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
     # train(30, 128, "vae-realnvp-base-jt-4flows", "mnist", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
 
-    train(30, 128, "vae-gauss-base", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
-    train(30, 128, "vae-realnvp-base-jt-4flows", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-gauss-base", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-realnvp-base-jt-4flows", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
 
-    train(30, 128, "vae-gauss-base-sigm", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
-    train(30, 128, "vae-gauss-big-sigm", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-gauss-base-sigm", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 64, "vae-gauss-big-sigm", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-realnvp-base-sigm-jt-4flows", "mnist", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-realnvp-base-sigm-jt-4flows", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+    # train(30, 128, "vae-gauss-base-sigm", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
 
     # train(30, 128, "vae-gauss-base", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True)
     # train(30, 64, "vae-gauss-big", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True)
@@ -198,3 +204,29 @@ if __name__ == "__main__":
     # train(30, 128, "vae-realnvp-base-jt-8flows", "mnist", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
     # train(30, 128, "vae-realnvp-base-jt", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
     # train(30, 128, "vae-realnvp-base-jt-8flows", "svhn", "elbo_flows", lr=1e-3, log_interval=50, cuda=True)
+
+    train(30, 128, "vae-gauss-base", "mnist", "elbo", lr=1e-3, log_interval=50, cuda=True, summary_only=True)
+    train(
+        30,
+        128,
+        "vae-realnvp-base-jt-4flows",
+        "mnist",
+        "elbo_flows",
+        lr=1e-3,
+        log_interval=50,
+        cuda=True,
+        summary_only=True,
+    )
+
+    train(30, 128, "vae-gauss-base", "svhn", "elbo", lr=1e-3, log_interval=50, cuda=True, summary_only=True)
+    train(
+        30,
+        128,
+        "vae-realnvp-base-jt-4flows",
+        "svhn",
+        "elbo_flows",
+        lr=1e-3,
+        log_interval=50,
+        cuda=True,
+        summary_only=True,
+    )

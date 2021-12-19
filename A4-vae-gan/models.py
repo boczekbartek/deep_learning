@@ -422,6 +422,15 @@ class VAERealNvpJTBase4Flows(VAERealNvpJTBase):
     n_flows = 4
 
 
+class VAERealNvpJTBase4FlowsSigm(VAERealNvpJTBase):
+    n_flows = 4
+
+    def decode(self, x):
+        x = super().decode(x)
+        x = torch.sigmoid(x)
+        return x
+
+
 class VAERealNvpJTBase4Flows2(VAERealNvpJTBase):
     n_flows = 4
 
@@ -446,10 +455,11 @@ def models_factory(name):
         "vae-gauss-base": VAEGaussBase,
         "vae-gauss-big": VAEGaussBig,
         "vae-gauss-base-sigm": VAEGaussBaseSigm,
-        "vae-gauss-sigm-big": VAEGaussBigSigm,
+        "vae-gauss-big-sigm": VAEGaussBigSigm,
         "vae-realnvp-radial-base": VAERealNvpRadialBase,
         "vae-realnvp-base-jt": VAERealNvpJTBase,
         "vae-realnvp-base-jt-4flows": VAERealNvpJTBase4Flows,
+        "vae-realnvp-base-sigm-jt-4flows": VAERealNvpJTBase4FlowsSigm,
         "vae-realnvp-base-jt-8flows": VAERealNvpJTBase8Flows,
         "vae-realnvp-base-jt-4flows2": VAERealNvpJTBase4Flows2,
     }[name]

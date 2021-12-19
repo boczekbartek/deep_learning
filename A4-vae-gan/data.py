@@ -80,7 +80,7 @@ def load_mnist(
 
 
 def load_inceptionv3_mnist(
-    batch_size: int, cuda: bool
+    batch_size: int, cuda: bool,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """ Rescale MNIST to fix inception v3 input. Return train and test loaders """
     inceptionv3_input_shape = (3, 299, 299)

@@ -62,7 +62,8 @@ class VAESamples2Inception(Dataset):
         except StopIteration:
             self.__preload_samples()
             sample = next(self.samples_buffer_iter)
-        sample = sample.view(1, 1, 28, 28)
+        c, h, w = sample.shape
+        sample = sample.view(1, c, h, w)
         sample = self.transform(sample)
         sample = sample.squeeze(0)
         mock_y = torch.Tensor([1, 2, 3])
