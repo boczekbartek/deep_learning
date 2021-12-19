@@ -56,17 +56,19 @@ class RescaleTensor(Rescale):
         return torch.cat([x] * self.c, dim=1)
 
 
-def load_mnist(batch_size: int, cuda: bool) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+def load_mnist(
+    batch_size: int, cuda: bool, test_size=0.1, random_state=42
+) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """ Return train and test loaders for mnist. """
 
     kwargs = {"num_workers": 1, "pin_memory": True} if cuda else {}
 
-    train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST(here / "../data", train=True, download=True, transform=transforms.ToTensor()),
-        batch_size=batch_size,
-        shuffle=True,
-        **kwargs,
-    )
+    train_mnist = datasets.MNIST(here / "../data", train=True, download=True, transform=transforms.ToTensor())
+
+    train, val = train_test_split(train_mnist, test_size=test_size, random_state=random_state)
+    train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True, **kwargs,)
+
+    val_loader = torch.utils.data.DataLoader(val, batch_size=batch_size, shuffle=True, **kwargs,)
 
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST(here / "../data", train=False, transform=transforms.ToTensor()),
@@ -74,7 +76,7 @@ def load_mnist(batch_size: int, cuda: bool) -> Tuple[torch.utils.data.DataLoader
         shuffle=True,
         **kwargs,
     )
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 
 def load_inceptionv3_mnist(
@@ -113,10 +115,15 @@ def load_svhn(
 
     train, test = train_test_split(dataset, test_size=test_size, random_state=random_state)
 
+    train, val = train_test_split(train, test_size=test_size, random_state=random_state)
+
     train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True, **kwargs,)
+
+    val_loader = torch.utils.data.DataLoader(val, batch_size=batch_size, shuffle=True, **kwargs,)
+
     test_loader = torch.utils.data.DataLoader(test, batch_size=batch_size, shuffle=True, **kwargs,)
 
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 
 class Interpolate:

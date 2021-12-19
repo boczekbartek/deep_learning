@@ -21,6 +21,20 @@ def elbo(x_hat: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, std: torch.Tens
     return loss
 
 
+def elbo_flows(x_hat, x, log_prob_z, log_det_J):
+    RE = F.mse_loss(x, x_hat, reduction="sum")
+    KL = -(log_prob_z + log_det_J).sum()
+    return RE + KL
+
+
+def elbo_flows2(x_hat, x, z, mu, std, log_prob_z, log_det_J):
+    RE = F.mse_loss(x, x_hat, reduction="sum")
+    KL1 = log_normal(z, mu, std) - log_normal(z, 0, 1)
+
+    KL2 = -(log_prob_z + log_det_J)
+    return RE + KL1.sum() + KL2.sum()
+
+
 def loss_function(x_hat: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor, z: torch.Tensor):
     BCE = F.binary_cross_entropy_with_logits(x_hat, x, reduction="sum")
 
@@ -43,11 +57,11 @@ def nll_flow_loss(
     return loss
 
 
-def elbo_flows(x_hat, x, log_prob_z, log_det_J):
-    RE = F.mse_loss(x, x_hat, reduction="sum")
-    KL = -(log_prob_z + log_det_J).sum()
-    return RE + KL
-
-
 def criterions_factory(name):
-    return {"elbo": elbo, "torch": loss_function, "nll": nll_flow_loss, "elbo_flows": elbo_flows}[name]
+    return {
+        "elbo": elbo,
+        "torch": loss_function,
+        "nll": nll_flow_loss,
+        "elbo_flows": elbo_flows,
+        "elbo_flows2": elbo_flows2,
+    }[name]

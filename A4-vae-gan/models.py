@@ -2,6 +2,7 @@ from abc import abstractclassmethod, abstractmethod, abstractproperty
 from typing import Tuple
 
 import torch
+from torch._C import set_flush_denormal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.multivariate_normal import MultivariateNormal
@@ -342,31 +343,29 @@ class VAERealNvpJTBase(VAEGaussBase):
     def __init__(self, in_channels: int, img_h: int, img_w: int) -> None:
         super(VAERealNvpJTBase, self).__init__(in_channels, img_h, img_w)
 
-        self.translation_nets = nn.ModuleList([SingleFlowTranslate(self.latent_dim, self.fc_size)] * self.n_flows)
+        self.translation_nets = nn.ModuleList([SingleFlowTranslate(self.latent_dim // 2, self.fc_size)] * self.n_flows)
 
-        self.scale_nets = nn.ModuleList([SingleFlowScale(self.latent_dim, self.fc_size)] * self.n_flows)
+        self.scale_nets = nn.ModuleList([SingleFlowScale(self.latent_dim // 2, self.fc_size)] * self.n_flows)
 
-        # Project flows output to the decoder
-        self.projection = nn.Linear(self.latent_dim * 2, self.latent_dim)
+        # # Project flows output to the decoder
+        # self.projection = nn.Linear(self.latent_dim, self.latent_dim)
+
+        self.mu = torch.zeros(self.latent_dim)
+        self.cov = torch.eye(self.latent_dim)
+        self.prior = MultivariateNormal(self.mu, self.cov)
 
     @staticmethod
     def permute(x):
         # TODO other permutation
         return x.flip(1)
 
-    def forward(self, x):
-        device = next(self.parameters()).device
+    def forward_flow(self, z):
 
-        mu = torch.zeros(self.latent_dim).to(device)
-        cov = torch.eye(self.latent_dim).to(device)
-        prior = MultivariateNormal(mu, cov)
-
-        xa, xb = self.encode(x)
-
-        log_det_J, z = x.new_zeros(x.shape[0]), torch.cat([xa, xb])
+        log_det_J = z.new_zeros(z.shape[0])
 
         # Autoregressive pass through the flows
         for scale_layer, translate_layer in zip(self.scale_nets, self.translation_nets):
+            xa, xb = torch.chunk(z, 2, 1)
             s = scale_layer(xa)
             t = translate_layer(xa)
 
@@ -377,25 +376,69 @@ class VAERealNvpJTBase(VAEGaussBase):
             z = self.permute(z)
 
             log_det_J = log_det_J - s.sum(dim=1)
-        z = self.projection(z)
-        z = F.relu(z)
+        return z, log_det_J
 
-        with torch.no_grad():
-            log_prob_z = prior.log_prob(z)
+    def forward_flow_inverse(self, x):
+        for scale_layer, translate_layer in reversed(list(zip(self.scale_nets, self.translation_nets))):
+            x = self.permute(x)
+            xa, xb = torch.chunk(x, 2, 1)
+
+            s = scale_layer(xa)
+            t = translate_layer(xa)
+
+            yb = torch.exp(s) * xb + t
+            x = torch.cat([xa, yb], dim=1)
+        return x
+
+    def forward(self, x):
+        device = next(self.parameters()).device
+
+        mu, logvar = self.encode(x)
+        z, std = self.reparameterize(mu, logvar)
+
+        z, log_det_J = self.forward_flow(z)
 
         x_hat = self.decode(z)
+
+        with torch.no_grad():
+            log_prob_z = self.prior.log_prob(z.cpu()).to(device)
 
         return x_hat, log_det_J, log_prob_z
 
     @torch.no_grad()
     def sample(self, n):
-        # TODO implement realnvp sampling
         device = next(self.parameters()).device
-        raise NotImplementedError
+        seed = self.prior.rsample((n,)).to(device)
+        z = self.forward_flow_inverse(seed)
+        x_hat = self.decode(z)
+        return x_hat
 
 
 class VAERealNvpJTBase8Flows(VAERealNvpJTBase):
     n_flows = 8
+
+
+class VAERealNvpJTBase4Flows(VAERealNvpJTBase):
+    n_flows = 4
+
+
+class VAERealNvpJTBase4Flows2(VAERealNvpJTBase):
+    n_flows = 4
+
+    def forward(self, x):
+        device = next(self.parameters()).device
+
+        mu, logvar = self.encode(x)
+        z0, std = self.reparameterize(mu, logvar)
+
+        z, log_det_J = self.forward_flow(z0)
+
+        x_hat = self.decode(z)
+
+        with torch.no_grad():
+            log_prob_z = self.prior.log_prob(z.cpu()).to(device)
+
+        return x_hat, log_det_J, log_prob_z, z0, mu, std
 
 
 def models_factory(name):
@@ -406,5 +449,7 @@ def models_factory(name):
         "vae-gauss-sigm-big": VAEGaussBigSigm,
         "vae-realnvp-radial-base": VAERealNvpRadialBase,
         "vae-realnvp-base-jt": VAERealNvpJTBase,
+        "vae-realnvp-base-jt-4flows": VAERealNvpJTBase4Flows,
         "vae-realnvp-base-jt-8flows": VAERealNvpJTBase8Flows,
+        "vae-realnvp-base-jt-4flows2": VAERealNvpJTBase4Flows2,
     }[name]

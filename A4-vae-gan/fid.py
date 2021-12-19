@@ -4,6 +4,9 @@ import torch.utils.data
 from torchvision.models.inception import inception_v3
 from data import Rescale
 from tqdm import tqdm
+import numpy as np
+from scipy import linalg
+import logging
 
 
 def rescale(x):
@@ -52,29 +55,41 @@ class FID(nn.Module):
         enc2 = self.encode(x2)
         return self._score_fid(enc1, enc2)
 
-    def _score_fid(self, enc1: torch.Tensor, enc2: torch.Tensor) -> float:
+    def _score_fid(self, enc1: torch.Tensor, enc2: torch.Tensor, eps=1e-6) -> float:
+        enc1 = enc1.cpu().numpy()
+        enc2 = enc2.cpu().numpy()
+
         mu1 = enc1.mean(axis=0)
         mu2 = enc2.mean(axis=0)
 
-        sigma1 = torch.cov(enc1)
-        sigma2 = torch.cov(enc2)
+        sigma1 = np.cov(enc1, rowvar=False)
+        sigma2 = np.cov(enc2, rowvar=False)
 
-        if sigma1.shape == ():
-            sigma1 = sigma1.view(1,)
+        mu1 = np.atleast_1d(mu1)
+        mu2 = np.atleast_1d(mu2)
 
-        if sigma2.shape == ():
-            sigma2 = sigma2.view(1,)
+        sigma1 = np.atleast_2d(sigma1)
+        sigma2 = np.atleast_2d(sigma2)
 
-        covmean = torch.sqrt(torch.matmul(sigma1, sigma2))
+        diff = mu1 - mu2
 
-        if covmean.shape == ():
-            p2 = sigma1 + sigma2 - 2.0 * covmean
-        else:
-            p2 = torch.trace(sigma1 + sigma2 - 2.0 * covmean)
+        covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+        if not np.isfinite(covmean).all():
+            msg = "fid calculation produces singular product; adding %s to diagonal of cov estimates" % eps
+            logging.warn(msg)
+            offset = np.eye(sigma1.shape[0]) * eps
+            covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
+            covmean = torch.sqrt(torch.matmul(sigma1, sigma2))
 
-        fid = torch.sum((mu1 - mu2) ** 2.0) + p2
+        if np.iscomplexobj(covmean):
+            if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
+                m = np.max(np.abs(covmean.imag))
+                raise ValueError("Imaginary component {}".format(m))
+            covmean = covmean.real
 
-        return fid.item()
+        tr_covmean = np.trace(covmean)
+
+        return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
 
     def forward(self, x1, x2):
         return self.score(x1, x2)
